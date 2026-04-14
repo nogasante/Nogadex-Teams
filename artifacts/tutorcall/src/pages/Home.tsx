@@ -3,7 +3,7 @@ import { useLocation } from "wouter";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Video, ArrowRight, Users } from "lucide-react";
+import { ArrowRight, Users } from "lucide-react";
 
 import { useCreateRoom } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
@@ -70,10 +70,7 @@ export default function Home() {
     <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
       <div className="max-w-md w-full space-y-8">
         <div className="text-center space-y-2">
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-primary text-white mb-4 shadow-sm">
-            <Video size={32} />
-          </div>
-          <h1 className="text-4xl font-bold tracking-tight text-slate-900">Nogadex</h1>
+          <img src="/nogadex-logo.png" alt="Nogadex" className="h-14 mx-auto mb-2 object-contain" />
           <p className="text-slate-500 text-lg">A professional space for focused tutoring.</p>
         </div>
 

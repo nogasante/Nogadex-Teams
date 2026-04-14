@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { useParams, useLocation } from "wouter";
 import { 
   Mic, MicOff, Video as VideoIcon, VideoOff, 
-  MonitorUp, MessageSquare, Users, PhoneOff,
+  MonitorUp, MessageSquare, PhoneOff,
   MoreVertical, Pin, PinOff, Send
 } from "lucide-react";
 
@@ -96,10 +96,8 @@ export default function Room() {
       {/* Header */}
       <header className="h-16 px-6 flex items-center justify-between bg-slate-900 border-b border-slate-800 z-10 shrink-0">
         <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center text-white">
-            <VideoIcon size={18} />
-          </div>
-          <span className="font-semibold text-lg tracking-tight">Nogadex</span>
+          <img src="/nogadex-icon.png" alt="Nogadex" className="h-8 w-8 object-contain rounded-lg" />
+          <span className="font-semibold text-lg tracking-tight text-white">Nogadex</span>
           <span className="ml-4 px-3 py-1 rounded-full bg-slate-800 text-xs font-medium text-slate-300">
             Room: {roomId}
           </span>
