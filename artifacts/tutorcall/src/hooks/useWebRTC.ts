@@ -8,6 +8,7 @@ export interface PeerState {
   isHost: boolean;
   isMuted: boolean;
   isVideoOff: boolean;
+  handRaised: boolean;
 }
 
 export interface ChatMessage {
@@ -17,7 +18,20 @@ export interface ChatMessage {
   timestamp: number;
 }
 
-export function useWebRTC(roomId: string, userName: string, isHost: boolean) {
+export interface Reaction {
+  id: string;
+  socketId: string;
+  senderName: string;
+  emoji: string;
+  timestamp: number;
+}
+
+export function useWebRTC(
+  roomId: string,
+  userName: string,
+  isHost: boolean,
+  audioOnly = false
+) {
   const [localStream, setLocalStream] = useState<MediaStream | null>(null);
   const [screenStream, setScreenStream] = useState<MediaStream | null>(null);
   const [peers, setPeers] = useState<Record<string, PeerState>>({});
@@ -25,12 +39,15 @@ export function useWebRTC(roomId: string, userName: string, isHost: boolean) {
   const [spotlightedPeerId, setSpotlightedPeerId] = useState<string | null>(null);
 
   const [isMuted, setIsMuted] = useState(false);
-  const [isVideoOff, setIsVideoOff] = useState(false);
+  const [isVideoOff, setIsVideoOff] = useState(audioOnly);
   const [isScreenSharing, setIsScreenSharing] = useState(false);
+  const [isHandRaised, setIsHandRaised] = useState(false);
+  const [reactions, setReactions] = useState<Reaction[]>([]);
 
   const peerConnections = useRef<Record<string, RTCPeerConnection>>({});
   const localStreamRef = useRef<MediaStream | null>(null);
   const screenStreamRef = useRef<MediaStream | null>(null);
+  const isHandRaisedRef = useRef(false);
 
   const ICE_SERVERS = {
     iceServers: [
@@ -42,15 +59,18 @@ export function useWebRTC(roomId: string, userName: string, isHost: boolean) {
   const getMedia = useCallback(async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: true,
+        video: !audioOnly,
         audio: true,
       });
       setLocalStream(stream);
       localStreamRef.current = stream;
+      if (audioOnly) {
+        stream.getVideoTracks().forEach(t => (t.enabled = false));
+        setIsVideoOff(true);
+      }
       return stream;
     } catch (err) {
       console.error("Failed to get local stream", err);
-      // Return an empty stream if permissions fail
       const emptyStream = new MediaStream();
       setLocalStream(emptyStream);
       localStreamRef.current = emptyStream;
@@ -58,7 +78,7 @@ export function useWebRTC(roomId: string, userName: string, isHost: boolean) {
       setIsVideoOff(true);
       return emptyStream;
     }
-  }, []);
+  }, [audioOnly]);
 
   const createPeerConnection = useCallback(
     (targetSocketId: string, name: string, isPeerHost: boolean) => {
@@ -84,6 +104,7 @@ export function useWebRTC(roomId: string, userName: string, isHost: boolean) {
             isHost: prev[targetSocketId]?.isHost ?? isPeerHost,
             isMuted: prev[targetSocketId]?.isMuted ?? false,
             isVideoOff: prev[targetSocketId]?.isVideoOff ?? false,
+            handRaised: prev[targetSocketId]?.handRaised ?? false,
           },
         }));
       };
@@ -109,7 +130,7 @@ export function useWebRTC(roomId: string, userName: string, isHost: boolean) {
       if (!mounted) return;
 
       socket.connect();
-      socket.emit("join-room", { roomId, userName, isHost });
+      socket.emit("join-room", { roomId, userName, isHost, audioOnly });
 
       socket.on("room-joined", async ({ participants }: { participantId: string; participants: Array<{ socketId: string; name: string; isHost: boolean; isMuted: boolean; isVideoOff: boolean }> }) => {
         for (const p of participants) {
@@ -122,6 +143,7 @@ export function useWebRTC(roomId: string, userName: string, isHost: boolean) {
               isHost: p.isHost,
               isMuted: p.isMuted,
               isVideoOff: p.isVideoOff,
+              handRaised: false,
             },
           }));
           const pc = createPeerConnection(p.socketId, p.name, p.isHost);
@@ -132,9 +154,8 @@ export function useWebRTC(roomId: string, userName: string, isHost: boolean) {
       });
 
       socket.on("user-joined", async (payload) => {
-        const { socketId, userName: newUserName, isHost: newIsHost } = payload;
-        
-        // Add to peers state without stream yet
+        const { socketId, userName: newUserName, isHost: newIsHost, audioOnly: peerAudioOnly } = payload;
+
         setPeers((prev) => ({
           ...prev,
           [socketId]: {
@@ -143,7 +164,8 @@ export function useWebRTC(roomId: string, userName: string, isHost: boolean) {
             stream: null,
             isHost: newIsHost,
             isMuted: false,
-            isVideoOff: false,
+            isVideoOff: peerAudioOnly ?? false,
+            handRaised: false,
           },
         }));
 
@@ -155,7 +177,7 @@ export function useWebRTC(roomId: string, userName: string, isHost: boolean) {
 
       socket.on("offer", async (payload) => {
         const { sender, offer, userName: senderName, isHost: senderHost } = payload;
-        
+
         setPeers((prev) => ({
           ...prev,
           [sender]: {
@@ -165,6 +187,7 @@ export function useWebRTC(roomId: string, userName: string, isHost: boolean) {
             isHost: prev[sender]?.isHost ?? senderHost ?? false,
             isMuted: prev[sender]?.isMuted ?? false,
             isVideoOff: prev[sender]?.isVideoOff ?? false,
+            handRaised: prev[sender]?.handRaised ?? false,
           },
         }));
 
@@ -212,24 +235,18 @@ export function useWebRTC(roomId: string, userName: string, isHost: boolean) {
       });
 
       socket.on("participant-muted", (payload) => {
-        const { socketId, isMuted } = payload;
+        const { socketId, isMuted: peerMuted } = payload;
         setPeers((prev) => {
           if (!prev[socketId]) return prev;
-          return {
-            ...prev,
-            [socketId]: { ...prev[socketId], isMuted },
-          };
+          return { ...prev, [socketId]: { ...prev[socketId], isMuted: peerMuted } };
         });
       });
 
       socket.on("participant-video-toggled", (payload) => {
-        const { socketId, isVideoOff } = payload;
+        const { socketId, isVideoOff: peerVideoOff } = payload;
         setPeers((prev) => {
           if (!prev[socketId]) return prev;
-          return {
-            ...prev,
-            [socketId]: { ...prev[socketId], isVideoOff },
-          };
+          return { ...prev, [socketId]: { ...prev[socketId], isVideoOff: peerVideoOff } };
         });
       });
 
@@ -239,15 +256,52 @@ export function useWebRTC(roomId: string, userName: string, isHost: boolean) {
       });
 
       socket.on("chat-message", (payload) => {
-        setChatMessages((prev) => [...prev, payload]);
+        setChatMessages((prev) => {
+          if (prev.some(m => m.id === payload.id)) return prev;
+          return [...prev, payload];
+        });
       });
-      
-      socket.on("mute-participant", (payload) => {
-         const { target } = payload;
-         if(target === socket.id) {
-             toggleMute(true);
-         }
-      })
+
+      socket.on("forced-mute", () => {
+        if (localStreamRef.current) {
+          localStreamRef.current.getAudioTracks().forEach(t => (t.enabled = false));
+        }
+        setIsMuted(true);
+        socket.emit("toggle-mute", { isMuted: true });
+      });
+
+      // Hand raise events
+      socket.on("hand-raised", ({ socketId: raisedId }: { socketId: string; name: string }) => {
+        if (raisedId === socket.id) {
+          setIsHandRaised(true);
+          isHandRaisedRef.current = true;
+        } else {
+          setPeers((prev) => {
+            if (!prev[raisedId]) return prev;
+            return { ...prev, [raisedId]: { ...prev[raisedId], handRaised: true } };
+          });
+        }
+      });
+
+      socket.on("hand-lowered", ({ socketId: loweredId }: { socketId: string }) => {
+        if (loweredId === socket.id) {
+          setIsHandRaised(false);
+          isHandRaisedRef.current = false;
+        } else {
+          setPeers((prev) => {
+            if (!prev[loweredId]) return prev;
+            return { ...prev, [loweredId]: { ...prev[loweredId], handRaised: false } };
+          });
+        }
+      });
+
+      // Reactions
+      socket.on("reaction", (payload: Reaction) => {
+        setReactions((prev) => [...prev, payload]);
+        setTimeout(() => {
+          setReactions((prev) => prev.filter((r) => r.id !== payload.id));
+        }, 3500);
+      });
     };
 
     init();
@@ -265,11 +319,14 @@ export function useWebRTC(roomId: string, userName: string, isHost: boolean) {
       socket.off("participant-video-toggled");
       socket.off("participant-spotlighted");
       socket.off("chat-message");
-      socket.off("mute-participant");
+      socket.off("forced-mute");
+      socket.off("hand-raised");
+      socket.off("hand-lowered");
+      socket.off("reaction");
 
       Object.values(peerConnections.current).forEach((pc) => pc.close());
       peerConnections.current = {};
-      
+
       if (localStreamRef.current) {
         localStreamRef.current.getTracks().forEach((track) => track.stop());
       }
@@ -277,30 +334,31 @@ export function useWebRTC(roomId: string, userName: string, isHost: boolean) {
         screenStreamRef.current.getTracks().forEach((track) => track.stop());
       }
     };
-  }, [roomId, userName, isHost, getMedia, createPeerConnection]);
+  }, [roomId, userName, isHost, audioOnly, getMedia, createPeerConnection]);
 
-  const toggleMute = useCallback((forceMute?: boolean) => {
-    if (localStream) {
-      const audioTrack = localStream.getAudioTracks()[0];
+  const toggleMute = useCallback(() => {
+    if (localStreamRef.current) {
+      const audioTrack = localStreamRef.current.getAudioTracks()[0];
       if (audioTrack) {
-        const newMuted = forceMute !== undefined ? forceMute : !isMuted;
+        const newMuted = !audioTrack.enabled;
         audioTrack.enabled = !newMuted;
         setIsMuted(newMuted);
         socket.emit("toggle-mute", { isMuted: newMuted });
       }
     }
-  }, [localStream, isMuted]);
+  }, []);
 
   const toggleVideo = useCallback(() => {
-    if (localStream) {
-      const videoTrack = localStream.getVideoTracks()[0];
+    if (localStreamRef.current) {
+      const videoTrack = localStreamRef.current.getVideoTracks()[0];
       if (videoTrack) {
-        videoTrack.enabled = isVideoOff;
-        setIsVideoOff(!isVideoOff);
-        socket.emit("toggle-video", { isVideoOff: !isVideoOff });
+        const newOff = videoTrack.enabled;
+        videoTrack.enabled = !newOff;
+        setIsVideoOff(newOff);
+        socket.emit("toggle-video", { isVideoOff: newOff });
       }
     }
-  }, [localStream, isVideoOff]);
+  }, []);
 
   const replaceStream = (newStream: MediaStream) => {
     Object.values(peerConnections.current).forEach((pc) => {
@@ -315,16 +373,16 @@ export function useWebRTC(roomId: string, userName: string, isHost: boolean) {
 
   const toggleScreenShare = useCallback(async () => {
     if (isScreenSharing) {
-      if (screenStream) {
-        screenStream.getTracks().forEach((track) => track.stop());
+      if (screenStreamRef.current) {
+        screenStreamRef.current.getTracks().forEach((track) => track.stop());
       }
       setScreenStream(null);
       screenStreamRef.current = null;
       setIsScreenSharing(false);
       socket.emit("stop-screen-share");
-      
-      if (localStream) {
-        replaceStream(localStream);
+
+      if (localStreamRef.current) {
+        replaceStream(localStreamRef.current);
       }
     } else {
       try {
@@ -333,10 +391,9 @@ export function useWebRTC(roomId: string, userName: string, isHost: boolean) {
         screenStreamRef.current = stream;
         setIsScreenSharing(true);
         socket.emit("start-screen-share");
-        
+
         replaceStream(stream);
 
-        // Handle browser's native stop sharing button
         stream.getVideoTracks()[0].onended = () => {
           toggleScreenShare();
         };
@@ -344,7 +401,7 @@ export function useWebRTC(roomId: string, userName: string, isHost: boolean) {
         console.error("Error sharing screen", err);
       }
     }
-  }, [isScreenSharing, screenStream, localStream]);
+  }, [isScreenSharing]);
 
   const sendChatMessage = useCallback((content: string) => {
     const msg: ChatMessage = {
@@ -354,7 +411,6 @@ export function useWebRTC(roomId: string, userName: string, isHost: boolean) {
       timestamp: Date.now(),
     };
     socket.emit("send-chat", msg);
-    setChatMessages((prev) => [...prev, msg]);
   }, [userName]);
 
   const muteParticipant = useCallback((targetSocketId: string) => {
@@ -370,6 +426,24 @@ export function useWebRTC(roomId: string, userName: string, isHost: boolean) {
     }
   }, [isHost]);
 
+  const raiseHand = useCallback(() => {
+    socket.emit("raise-hand");
+  }, []);
+
+  const lowerHand = useCallback(() => {
+    socket.emit("lower-hand");
+  }, []);
+
+  const hostLowerHand = useCallback((targetSocketId: string) => {
+    if (isHost) {
+      socket.emit("host-lower-hand", { target: targetSocketId });
+    }
+  }, [isHost]);
+
+  const sendReaction = useCallback((emoji: string) => {
+    socket.emit("send-reaction", { emoji });
+  }, []);
+
   return {
     localStream: isScreenSharing && screenStream ? screenStream : localStream,
     peers,
@@ -378,12 +452,18 @@ export function useWebRTC(roomId: string, userName: string, isHost: boolean) {
     isMuted,
     isVideoOff,
     isScreenSharing,
+    isHandRaised,
+    reactions,
     toggleMute,
     toggleVideo,
     toggleScreenShare,
     sendChatMessage,
     muteParticipant,
     spotlightParticipant,
+    raiseHand,
+    lowerHand,
+    hostLowerHand,
+    sendReaction,
     socketId: socket.id,
   };
 }

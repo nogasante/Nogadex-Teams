@@ -3,7 +3,7 @@ import { useLocation } from "wouter";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { ArrowRight, Users } from "lucide-react";
+import { ArrowRight, Users, Mic, Video as VideoIcon } from "lucide-react";
 
 import { useCreateRoom } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
@@ -31,6 +31,7 @@ export default function Home() {
   const [, setLocation] = useLocation();
   const createRoom = useCreateRoom();
   const [activeTab, setActiveTab] = useState<"join" | "create">("join");
+  const [audioOnly, setAudioOnly] = useState(false);
 
   const joinForm = useForm<z.infer<typeof joinSchema>>({
     resolver: zodResolver(joinSchema),
@@ -49,11 +50,15 @@ export default function Home() {
 
   const onJoinSubmit = (data: z.infer<typeof joinSchema>) => {
     sessionStorage.setItem("tutorcall-username", data.userName);
+    if (audioOnly) sessionStorage.setItem("tutorcall-audio-only", "true");
+    else sessionStorage.removeItem("tutorcall-audio-only");
     setLocation(`/room/${data.roomId}`);
   };
 
   const onCreateSubmit = (data: z.infer<typeof createSchema>) => {
     sessionStorage.setItem("tutorcall-username", data.userName);
+    if (audioOnly) sessionStorage.setItem("tutorcall-audio-only", "true");
+    else sessionStorage.removeItem("tutorcall-audio-only");
     createRoom.mutate(
       { data: { hostName: data.userName } },
       {
@@ -63,6 +68,46 @@ export default function Home() {
       }
     );
   };
+
+  const AudioOnlyToggle = () => (
+    <button
+      type="button"
+      onClick={() => setAudioOnly(!audioOnly)}
+      className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all"
+      style={{
+        background: audioOnly
+          ? "rgba(123,29,50,0.12)"
+          : "rgba(240,233,216,0.45)",
+        border: `1px solid ${audioOnly ? "rgba(123,29,50,0.25)" : "rgba(240,233,216,0.60)"}`,
+      }}
+    >
+      <div
+        className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0"
+        style={{ background: audioOnly ? "rgba(123,29,50,0.20)" : "rgba(240,233,216,0.70)" }}
+      >
+        {audioOnly
+          ? <Mic className="w-4 h-4" style={{ color: "hsl(345 65% 38%)" }} />
+          : <VideoIcon className="w-4 h-4" style={{ color: "hsl(220 5% 50%)" }} />}
+      </div>
+      <div className="text-left flex-1">
+        <div className="text-xs font-semibold" style={{ color: "hsl(220 8% 24%)" }}>
+          {audioOnly ? "Audio only mode" : "Camera + mic"}
+        </div>
+        <div className="text-[10px]" style={{ color: "hsl(220 5% 48%)" }}>
+          {audioOnly ? "Camera will be off when you join" : "Camera enabled on join"}
+        </div>
+      </div>
+      <div
+        className="w-9 h-5 rounded-full relative transition-colors shrink-0"
+        style={{ background: audioOnly ? "hsl(345 65% 38%)" : "rgba(0,0,0,0.15)" }}
+      >
+        <div
+          className="absolute top-0.5 w-4 h-4 rounded-full bg-white shadow-sm transition-transform"
+          style={{ transform: audioOnly ? "translateX(17px)" : "translateX(2px)" }}
+        />
+      </div>
+    </button>
+  );
 
   return (
     <div className="landing-bg min-h-screen flex items-center justify-center p-6">
@@ -158,6 +203,7 @@ export default function Home() {
                       </FormItem>
                     )}
                   />
+                  <AudioOnlyToggle />
                   <Button
                     type="submit"
                     className="w-full h-11 rounded-xl font-semibold text-sm gap-2"
@@ -202,6 +248,7 @@ export default function Home() {
                       </FormItem>
                     )}
                   />
+                  <AudioOnlyToggle />
                   <Button
                     type="submit"
                     className="w-full h-11 rounded-xl font-semibold text-sm gap-2"

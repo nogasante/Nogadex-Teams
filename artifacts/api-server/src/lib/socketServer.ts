@@ -16,7 +16,7 @@ export function setupSocketIO(httpServer: HttpServer) {
   io.on("connection", (socket) => {
     logger.info({ socketId: socket.id }, "Socket connected");
 
-    socket.on("join-room", ({ roomId, userName, isHost }: { roomId: string; userName: string; isHost: boolean }) => {
+    socket.on("join-room", ({ roomId, userName, isHost, audioOnly }: { roomId: string; userName: string; isHost: boolean; audioOnly?: boolean }) => {
       const upperRoomId = roomId.toUpperCase();
       const participantId = randomUUID();
 
@@ -26,7 +26,7 @@ export function setupSocketIO(httpServer: HttpServer) {
         name: userName,
         isHost,
         isMuted: false,
-        isVideoOff: false,
+        isVideoOff: audioOnly ?? false,
       });
 
       if (!participant) {
@@ -50,6 +50,7 @@ export function setupSocketIO(httpServer: HttpServer) {
         socketId: socket.id,
         name: userName,
         isHost,
+        audioOnly: audioOnly ?? false,
       });
 
       logger.info({ socketId: socket.id, roomId: upperRoomId, userName }, "User joined room");
@@ -143,6 +144,42 @@ export function setupSocketIO(httpServer: HttpServer) {
         timestamp: payload.timestamp || Date.now(),
       };
       io.to(ctx.room.id).emit("chat-message", chatMessage);
+    });
+
+    // Raise / lower hand
+    socket.on("raise-hand", () => {
+      const ctx = roomStore.getRoomForSocket(socket.id);
+      if (!ctx) return;
+      io.to(ctx.room.id).emit("hand-raised", {
+        socketId: socket.id,
+        name: ctx.participant.name,
+      });
+    });
+
+    socket.on("lower-hand", () => {
+      const ctx = roomStore.getRoomForSocket(socket.id);
+      if (!ctx) return;
+      io.to(ctx.room.id).emit("hand-lowered", { socketId: socket.id });
+    });
+
+    // Reactions (emoji)
+    socket.on("send-reaction", ({ emoji }: { emoji: string }) => {
+      const ctx = roomStore.getRoomForSocket(socket.id);
+      if (!ctx) return;
+      io.to(ctx.room.id).emit("reaction", {
+        id: randomUUID(),
+        socketId: socket.id,
+        senderName: ctx.participant.name,
+        emoji,
+        timestamp: Date.now(),
+      });
+    });
+
+    // Host: lower someone else's hand
+    socket.on("host-lower-hand", ({ target }: { target: string }) => {
+      const ctx = roomStore.getRoomForSocket(socket.id);
+      if (!ctx || !ctx.participant.isHost) return;
+      io.to(ctx.room.id).emit("hand-lowered", { socketId: target });
     });
 
     socket.on("disconnect", () => {
