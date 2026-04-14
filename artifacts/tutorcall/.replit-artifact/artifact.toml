@@ -1,0 +1,31 @@
+kind = "web"
+previewPath = "/"
+title = "TutorCall"
+version = "1.0.0"
+id = "artifacts/tutorcall"
+router = "path"
+
+[[integratedSkills]]
+name = "react-vite"
+version = "1.0.0"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 24985
+
+[services.development]
+run = "pnpm --filter @workspace/tutorcall run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/tutorcall", "run", "build" ]
+publicDir = "artifacts/tutorcall/dist/public"
+serve = "static"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "24985"
+BASE_PATH = "/"
