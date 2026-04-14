@@ -99,7 +99,7 @@ export default function Room() {
           <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center text-white">
             <VideoIcon size={18} />
           </div>
-          <span className="font-semibold text-lg tracking-tight">TutorCall</span>
+          <span className="font-semibold text-lg tracking-tight">Nogadex</span>
           <span className="ml-4 px-3 py-1 rounded-full bg-slate-800 text-xs font-medium text-slate-300">
             Room: {roomId}
           </span>

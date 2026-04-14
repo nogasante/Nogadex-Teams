@@ -73,7 +73,7 @@ export default function Home() {
           <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-primary text-white mb-4 shadow-sm">
             <Video size={32} />
           </div>
-          <h1 className="text-4xl font-bold tracking-tight text-slate-900">TutorCall</h1>
+          <h1 className="text-4xl font-bold tracking-tight text-slate-900">Nogadex</h1>
           <p className="text-slate-500 text-lg">A professional space for focused tutoring.</p>
         </div>
 
