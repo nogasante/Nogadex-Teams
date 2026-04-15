@@ -47,8 +47,8 @@ The app expects environment variables to be provided explicitly.
 
 Use:
 
-- `/home/runner/work/Nogadex-Teams/Nogadex-Teams/artifacts/api-server/.env.example`
-- `/home/runner/work/Nogadex-Teams/Nogadex-Teams/artifacts/tutorcall/.env.example`
+- `artifacts/api-server/.env.example`
+- `artifacts/tutorcall/.env.example`
 
 ### Run in development
 

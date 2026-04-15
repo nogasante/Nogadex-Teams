@@ -13,6 +13,7 @@ const RATE_LIMITS = {
   joinRoom: { limit: 5, windowMs: 60_000 },
   sendChat: { limit: 20, windowMs: 10_000 },
   sendReaction: { limit: 15, windowMs: 10_000 },
+  signaling: { limit: 120, windowMs: 10_000 },
 } as const;
 
 interface EventWindow {
@@ -21,6 +22,33 @@ interface EventWindow {
 }
 
 const eventWindows = new Map<string, EventWindow>();
+let lastRateLimitCleanupAt = 0;
+
+function getRateLimitWindowForEvent(eventName: string | undefined) {
+  const rateLimitKeyByEvent: Record<string, keyof typeof RATE_LIMITS> = {
+    "join-room": "joinRoom",
+    "send-chat": "sendChat",
+    "send-reaction": "sendReaction",
+  };
+  const key = eventName ? rateLimitKeyByEvent[eventName] : undefined;
+  return key ? RATE_LIMITS[key] : RATE_LIMITS.signaling;
+}
+
+function cleanupExpiredWindows(now: number): void {
+  if (now - lastRateLimitCleanupAt < 60_000) {
+    return;
+  }
+  lastRateLimitCleanupAt = now;
+
+  for (const [key, entry] of eventWindows.entries()) {
+    const [, eventName] = key.split(":", 2);
+    const currentLimit = getRateLimitWindowForEvent(eventName);
+
+    if (now - entry.startedAt >= currentLimit.windowMs) {
+      eventWindows.delete(key);
+    }
+  }
+}
 
 function consumeRateLimit(
   socketId: string,
@@ -29,6 +57,7 @@ function consumeRateLimit(
   windowMs: number,
 ): boolean {
   const now = Date.now();
+  cleanupExpiredWindows(now);
   const key = `${socketId}:${eventName}`;
   const existing = eventWindows.get(key);
 
@@ -62,7 +91,7 @@ function isJoinRoomPayload(
   }
 
   const candidate = payload as Record<string, unknown>;
-  const roomId = toSafeString(candidate["roomId"]).toUpperCase();
+  const roomId = toSafeString(candidate["roomId"]);
   const userName = toSafeString(candidate["userName"]);
   const isHost = candidate["isHost"];
   const audioOnly = candidate["audioOnly"];
@@ -71,7 +100,7 @@ function isJoinRoomPayload(
     audioOnly === undefined || typeof audioOnly === "boolean";
 
   return (
-    ROOM_ID_PATTERN.test(roomId) &&
+    ROOM_ID_PATTERN.test(roomId.toUpperCase()) &&
     userName.length >= 2 &&
     userName.length <= MAX_NAME_LENGTH &&
     typeof isHost === "boolean" &&
@@ -124,6 +153,20 @@ function isSendReactionPayload(payload: unknown): payload is { emoji: string } {
   const candidate = payload as Record<string, unknown>;
   const emoji = toSafeString(candidate["emoji"]);
   return emoji.length > 0 && emoji.length <= 8;
+}
+
+function isSignalPayload(
+  payload: unknown,
+): payload is { target: string; offer?: unknown; answer?: unknown; candidate?: unknown } {
+  if (!payload || typeof payload !== "object") {
+    return false;
+  }
+  const candidate = payload as Record<string, unknown>;
+  const target = toSafeString(candidate["target"]);
+  if (target.length < 2 || target.length > 128) {
+    return false;
+  }
+  return true;
 }
 
 export function setupSocketIO(httpServer: HttpServer) {
@@ -203,7 +246,23 @@ export function setupSocketIO(httpServer: HttpServer) {
       logger.info({ socketId: socket.id, roomId: upperRoomId, userName }, "User joined room");
     });
 
-    socket.on("offer", ({ target, offer }: { target: string; offer: unknown }) => {
+    socket.on("offer", (payload: unknown) => {
+      if (
+        !consumeRateLimit(
+          socket.id,
+          "offer",
+          RATE_LIMITS.signaling.limit,
+          RATE_LIMITS.signaling.windowMs,
+        )
+      ) {
+        socket.emit("error", { message: "Rate limit exceeded for offer" });
+        return;
+      }
+      if (!isSignalPayload(payload) || payload.offer === undefined) {
+        socket.emit("error", { message: "Invalid offer payload" });
+        return;
+      }
+      const { target, offer } = payload;
       const ctx = roomStore.getRoomForSocket(socket.id);
       if (!ctx) return;
       io.to(target).emit("offer", {
@@ -214,14 +273,46 @@ export function setupSocketIO(httpServer: HttpServer) {
       });
     });
 
-    socket.on("answer", ({ target, answer }: { target: string; answer: unknown }) => {
+    socket.on("answer", (payload: unknown) => {
+      if (
+        !consumeRateLimit(
+          socket.id,
+          "answer",
+          RATE_LIMITS.signaling.limit,
+          RATE_LIMITS.signaling.windowMs,
+        )
+      ) {
+        socket.emit("error", { message: "Rate limit exceeded for answer" });
+        return;
+      }
+      if (!isSignalPayload(payload) || payload.answer === undefined) {
+        socket.emit("error", { message: "Invalid answer payload" });
+        return;
+      }
+      const { target, answer } = payload;
       io.to(target).emit("answer", {
         sender: socket.id,
         answer,
       });
     });
 
-    socket.on("ice-candidate", ({ target, candidate }: { target: string; candidate: unknown }) => {
+    socket.on("ice-candidate", (payload: unknown) => {
+      if (
+        !consumeRateLimit(
+          socket.id,
+          "ice-candidate",
+          RATE_LIMITS.signaling.limit,
+          RATE_LIMITS.signaling.windowMs,
+        )
+      ) {
+        socket.emit("error", { message: "Rate limit exceeded for ice-candidate" });
+        return;
+      }
+      if (!isSignalPayload(payload) || payload.candidate === undefined) {
+        socket.emit("error", { message: "Invalid ice-candidate payload" });
+        return;
+      }
+      const { target, candidate } = payload;
       io.to(target).emit("ice-candidate", {
         sender: socket.id,
         candidate,

@@ -32,7 +32,7 @@ export function getAllowedOrigins(): string[] {
 
 export function isAllowedOrigin(origin: string | undefined): boolean {
   if (!origin) {
-    return true;
+    return process.env["NODE_ENV"] !== "production";
   }
 
   const allowedOrigins = getAllowedOrigins();
