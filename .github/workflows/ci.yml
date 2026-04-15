@@ -1,0 +1,53 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    env:
+      NODE_ENV: test
+      PORT: 5173
+      BASE_PATH: /
+      CORS_ALLOWED_ORIGINS: http://localhost:5173
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Typecheck workspace
+        run: pnpm run typecheck
+
+      - name: Build workspace
+        run: pnpm run build
+
+      - name: Smoke test API health endpoint
+        run: |
+          PORT=8080 node --enable-source-maps artifacts/api-server/dist/index.mjs &
+          API_PID=$!
+          trap 'kill $API_PID' EXIT
+          sleep 3
+          curl -fsS http://127.0.0.1:8080/api/healthz
+
+      - name: Smoke test frontend build output
+        run: |
+          test -f artifacts/tutorcall/dist/public/index.html

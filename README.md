@@ -32,23 +32,80 @@ A peer-to-peer video tutoring platform built with Node.js, Express, Socket.io, a
 pnpm install
 ```
 
+### Runtime environment assumptions
+
+The app expects environment variables to be provided explicitly.
+
+- API server (`artifacts/api-server`)
+  - `PORT` (required): port for Express + Socket.IO
+  - `CORS_ALLOWED_ORIGINS` (recommended): comma-separated allowed web origins
+  - `FRONTEND_ORIGIN` (optional fallback if `CORS_ALLOWED_ORIGINS` is unset)
+  - `NODE_ENV`, `LOG_LEVEL` (optional)
+- Frontend (`artifacts/tutorcall`)
+  - `PORT` (required by `vite.config.ts`)
+  - `BASE_PATH` (required by `vite.config.ts`, use `/` unless deploying under subpath)
+
+Use:
+
+- `artifacts/api-server/.env.example`
+- `artifacts/tutorcall/.env.example`
+
 ### Run in development
 
 Start the API/signaling server:
 
 ```bash
+set -a && source artifacts/api-server/.env.example && set +a
 pnpm --filter @workspace/api-server run dev
 ```
 
 Start the frontend:
 
 ```bash
+set -a && source artifacts/tutorcall/.env.example && set +a
 pnpm --filter @workspace/tutorcall run dev
 ```
 
 ### On Replit
 
 Everything starts automatically. The API server runs on port 8080 and the frontend on the port specified by the `PORT` environment variable.
+
+## Runbook (local, staging, production)
+
+### Local
+
+1. Copy both `.env.example` files to `.env` in each artifact package.
+   (or export values from those files into your shell/session)
+2. Run API and frontend in separate terminals:
+   - `pnpm --filter @workspace/api-server run dev`
+   - `pnpm --filter @workspace/tutorcall run dev`
+3. Confirm health check: `GET /api/healthz`.
+
+### Staging
+
+1. Set staged env values:
+   - API: `PORT`, `CORS_ALLOWED_ORIGINS` with staging frontend URL(s)
+   - Frontend: `PORT`, `BASE_PATH=/` (or staging subpath)
+2. Run:
+   - `pnpm run typecheck`
+   - `pnpm run build`
+3. Smoke checks:
+   - API health endpoint responds `{"status":"ok"}`
+   - frontend build output contains `artifacts/tutorcall/dist/public/index.html`
+
+### Production
+
+1. Provision env vars explicitly (do not rely on defaults).
+2. Set strict CORS origins using `CORS_ALLOWED_ORIGINS`.
+3. Build and start API:
+   - `pnpm --filter @workspace/api-server run build`
+   - `PORT=<port> pnpm --filter @workspace/api-server run start`
+4. Build and serve frontend artifacts from `artifacts/tutorcall/dist/public`.
+
+## CI and required checks before merge
+
+- CI workflow is defined at `.github/workflows/ci.yml` and runs install, typecheck, build, and smoke checks.
+- In GitHub repository settings, enable branch protection and require the `CI` check to pass before merge.
 
 ## How It Works
 
