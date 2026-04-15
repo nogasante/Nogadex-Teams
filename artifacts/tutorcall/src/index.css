@@ -257,7 +257,13 @@
 
   body {
     @apply font-sans antialiased bg-background text-foreground;
+    /* Prevent overscroll bounce on mobile */
+    overscroll-behavior: none;
   }
+
+  /* Use dynamic viewport height so room page fills correctly on mobile */
+  .h-dvh { height: 100dvh; }
+  .min-h-dvh { min-height: 100dvh; }
 }
 
 /* ── iOS Liquid Glass Utilities ─────────────────────────────── */

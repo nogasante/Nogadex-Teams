@@ -163,13 +163,13 @@ export default function Room() {
 
   const gridCols =
     peersList.length === 0 ? "grid-cols-1" :
-    peersList.length === 1 ? "grid-cols-2" :
+    peersList.length === 1 ? "grid-cols-1 sm:grid-cols-2" :
     peersList.length <= 3 ? "grid-cols-2" :
-    peersList.length <= 8 ? "grid-cols-3" :
-    "grid-cols-4";
+    peersList.length <= 8 ? "grid-cols-2 sm:grid-cols-3" :
+    "grid-cols-3 sm:grid-cols-4";
 
   return (
-    <div className="room-bg h-screen w-full flex flex-col overflow-hidden select-none" style={{ fontFamily: "Inter, sans-serif" }}>
+    <div className="room-bg w-full flex flex-col overflow-hidden select-none" style={{ fontFamily: "Inter, sans-serif", height: "100dvh" }}>
 
       {/* ── Floating Reactions ── */}
       <div className="fixed inset-0 pointer-events-none z-50">
@@ -186,7 +186,7 @@ export default function Room() {
       </div>
 
       {/* ── Header ── */}
-      <header className="glass-dark h-14 px-5 flex items-center justify-between shrink-0 z-20">
+      <header className="glass-dark h-12 sm:h-14 px-3 sm:px-5 flex items-center justify-between shrink-0 z-20">
         <div className="flex items-center gap-3">
           <img src="/nogadex-icon.png" alt="Nogadex" className="h-7 w-7 rounded-xl object-contain" />
           <span className="font-semibold text-sm" style={{ color: "hsl(38 20% 90%)" }}>Nogadex</span>
@@ -203,7 +203,7 @@ export default function Room() {
         </div>
 
         <div className="flex items-center gap-3">
-          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg" style={{ background: "rgba(255,248,240,0.06)" }}>
+          <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-lg" style={{ background: "rgba(255,248,240,0.06)" }}>
             <Clock className="w-3 h-3" style={{ color: "hsl(38 15% 55%)" }} />
             <span className="text-xs font-mono" style={{ color: "hsl(38 15% 62%)" }}>{timer}</span>
           </div>
@@ -285,9 +285,16 @@ export default function Room() {
           )}
         </div>
 
-        {/* ── Side panel ── */}
+        {/* ── Side panel — full overlay on mobile, sidebar on desktop ── */}
         {sidePanel && (
-          <div className="glass-dark w-72 shrink-0 border-l flex flex-col z-10"
+          <>
+            {/* Mobile backdrop */}
+            <div className="sm:hidden fixed inset-0 z-20 bg-black/50 backdrop-blur-sm"
+              onClick={() => setSidePanel(null)} />
+          </>
+        )}
+        {sidePanel && (
+          <div className="glass-dark sm:w-72 w-full sm:static fixed bottom-0 left-0 right-0 sm:h-auto h-[60vh] shrink-0 sm:border-l border-t flex flex-col z-30 sm:rounded-none rounded-t-3xl"
             style={{ borderColor: "rgba(255,248,240,0.08)" }}>
             {sidePanel === "chat" ? (
               <>
@@ -359,8 +366,8 @@ export default function Room() {
       </div>
 
       {/* ── Control bar ── */}
-      <div className="glass-dark h-20 px-6 flex items-center justify-between shrink-0 z-20 border-t"
-        style={{ borderColor: "rgba(255,248,240,0.08)" }}>
+      <div className="glass-dark sm:h-20 h-24 px-4 sm:px-6 flex items-center justify-between shrink-0 z-20 border-t pb-safe"
+        style={{ borderColor: "rgba(255,248,240,0.08)", paddingBottom: "max(env(safe-area-inset-bottom), 8px)" }}>
         {/* Left — reactions */}
         <div className="flex-1 flex items-center gap-2">
           <div className="relative">
@@ -520,9 +527,9 @@ interface CtrlBtnProps {
 function CtrlBtn({ children, onClick, active, destructive, label, style }: CtrlBtnProps) {
   return (
     <button onClick={onClick} title={label}
-      className={cn("rounded-2xl flex items-center justify-center transition-all",
+      className={cn("rounded-2xl flex items-center justify-center transition-all active:scale-95",
         destructive ? "glass-btn-destructive" : active ? "glass-burgundy" : "glass-btn")}
-      style={{ width: 48, height: 48, ...style }}>
+      style={{ width: "clamp(44px, 5vw, 52px)", height: "clamp(44px, 5vw, 52px)", ...style }}>
       {children}
     </button>
   );
