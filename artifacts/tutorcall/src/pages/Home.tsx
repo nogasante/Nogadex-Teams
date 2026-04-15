@@ -50,13 +50,15 @@ export default function Home() {
 
   const onJoinSubmit = (data: z.infer<typeof joinSchema>) => {
     sessionStorage.setItem("tutorcall-username", data.userName);
+    sessionStorage.setItem("tutorcall-is-host", "false");
     if (audioOnly) sessionStorage.setItem("tutorcall-audio-only", "true");
     else sessionStorage.removeItem("tutorcall-audio-only");
-    setLocation(`/room/${data.roomId}`);
+    setLocation(`/room/${data.roomId.toUpperCase()}`);
   };
 
   const onCreateSubmit = (data: z.infer<typeof createSchema>) => {
     sessionStorage.setItem("tutorcall-username", data.userName);
+    sessionStorage.setItem("tutorcall-is-host", "true");
     if (audioOnly) sessionStorage.setItem("tutorcall-audio-only", "true");
     else sessionStorage.removeItem("tutorcall-audio-only");
     createRoom.mutate(

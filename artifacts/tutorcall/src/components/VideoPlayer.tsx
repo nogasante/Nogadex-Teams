@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from "react";
-import { User, MicOff, VideoOff } from "lucide-react";
+import { User, MicOff } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface VideoPlayerProps {
@@ -24,45 +24,55 @@ export function VideoPlayer({
   const videoRef = useRef<HTMLVideoElement>(null);
 
   useEffect(() => {
-    if (videoRef.current && stream) {
+    if (videoRef.current) {
       videoRef.current.srcObject = stream;
     }
   }, [stream]);
 
+  const initials = name ? name.slice(0, 2).toUpperCase() : "?";
+
   return (
-    <div className={cn("relative rounded-xl overflow-hidden bg-slate-900 shadow-md group", className)}>
-      {isVideoOff || !stream ? (
-        <div className="absolute inset-0 flex items-center justify-center bg-slate-800">
-          <div className="w-20 h-20 rounded-full bg-slate-700 flex items-center justify-center text-slate-300">
-            <User size={40} />
+    <div className={cn("relative rounded-xl overflow-hidden group", className)}
+      style={{ background: "hsl(220 8% 15%)" }}>
+
+      {/* Video — always rendered so srcObject assignment works */}
+      <video
+        ref={videoRef}
+        autoPlay
+        playsInline
+        muted={isLocal}
+        className={cn(
+          "w-full h-full object-cover",
+          (isVideoOff || !stream) && "hidden",
+          isLocal && !stream?.getVideoTracks()[0]?.label.toLowerCase().includes("screen") ? "scale-x-[-1]" : ""
+        )}
+      />
+
+      {/* Avatar when video is off */}
+      {(isVideoOff || !stream) && (
+        <div className="absolute inset-0 flex items-center justify-center"
+          style={{ background: "hsl(220 8% 16%)" }}>
+          <div className="w-16 h-16 rounded-2xl flex items-center justify-center text-xl font-bold"
+            style={{ background: "rgba(123,29,50,0.35)", color: "hsl(38 25% 82%)" }}>
+            {initials}
           </div>
         </div>
-      ) : (
-        <video
-          ref={videoRef}
-          autoPlay
-          playsInline
-          muted={isLocal}
-          className={cn("w-full h-full object-cover", isLocal && !stream.getVideoTracks()[0]?.label.includes("screen") ? "scale-x-[-1]" : "")}
-        />
       )}
 
-      {/* Overlays */}
-      <div className="absolute bottom-3 left-3 flex items-center space-x-2">
-        <div className="bg-black/60 backdrop-blur-md px-3 py-1.5 rounded-lg text-white text-sm font-medium flex items-center shadow-sm">
-          {name} {isLocal && "(You)"}
+      {/* Bottom info bar */}
+      <div className="absolute bottom-0 left-0 right-0 px-3 py-2 flex items-center justify-between"
+        style={{ background: "linear-gradient(to top, rgba(0,0,0,0.65) 0%, transparent 100%)" }}>
+        <div className="flex items-center gap-2">
+          <span className="text-xs font-medium text-white/90">{name}{isLocal ? " (You)" : ""}</span>
+          {isHost && (
+            <span className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-px rounded-md"
+              style={{ background: "rgba(123,29,50,0.75)", color: "hsl(38 35% 88%)" }}>Host</span>
+          )}
         </div>
-        {isHost && (
-          <div className="bg-primary/90 backdrop-blur-md px-2 py-1 rounded-md text-white text-xs font-semibold uppercase tracking-wider">
-            Host
-          </div>
-        )}
-      </div>
-
-      <div className="absolute top-3 right-3 flex items-center space-x-2">
         {isMuted && (
-          <div className="bg-red-500/90 text-white p-1.5 rounded-md shadow-sm">
-            <MicOff size={16} />
+          <div className="flex items-center justify-center w-5 h-5 rounded-lg"
+            style={{ background: "rgba(180,28,28,0.80)" }}>
+            <MicOff size={11} className="text-white/90" />
           </div>
         )}
       </div>
