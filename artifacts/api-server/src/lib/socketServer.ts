@@ -203,7 +203,7 @@ export function setupSocketIO(httpServer: HttpServer) {
       logger.info({ socketId: socket.id, roomId: upperRoomId, userName }, "User joined room");
     });
 
-    socket.on("offer", ({ target, offer }: { target: string; offer: RTCSessionDescriptionInit }) => {
+    socket.on("offer", ({ target, offer }: { target: string; offer: unknown }) => {
       const ctx = roomStore.getRoomForSocket(socket.id);
       if (!ctx) return;
       io.to(target).emit("offer", {
@@ -214,14 +214,14 @@ export function setupSocketIO(httpServer: HttpServer) {
       });
     });
 
-    socket.on("answer", ({ target, answer }: { target: string; answer: RTCSessionDescriptionInit }) => {
+    socket.on("answer", ({ target, answer }: { target: string; answer: unknown }) => {
       io.to(target).emit("answer", {
         sender: socket.id,
         answer,
       });
     });
 
-    socket.on("ice-candidate", ({ target, candidate }: { target: string; candidate: RTCIceCandidateInit }) => {
+    socket.on("ice-candidate", ({ target, candidate }: { target: string; candidate: unknown }) => {
       io.to(target).emit("ice-candidate", {
         sender: socket.id,
         candidate,
